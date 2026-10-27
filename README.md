@@ -38,10 +38,10 @@ Because the index is `explicit`, uv uses it only for `keycloak-auth`, and instal
 
 We don't recommend pip. It can't limit a package to one index, so with `--extra-index-url https://pkgs.agnos.one/simple/` a package of the same name on PyPI could be installed instead (dependency confusion).
 
-If you need pip, install the wheel by its URL. Replace `<version>` with a release listed at https://pkgs.agnos.one/simple/keycloak-auth/. The dependencies come from PyPI:
+If you need pip, install the wheel by its URL. Replace `<wheel-file>` with a release file listed at https://pkgs.agnos.one/simple/keycloak-auth/. The dependencies come from PyPI:
 
 ```bash
-pip install "https://pkgs.agnos.one/simple/keycloak-auth/keycloak_auth-<version>-py3-none-any.whl"
+pip install "https://pkgs.agnos.one/simple/keycloak-auth/<wheel-file>"
 ```
 
 ## Quick start
