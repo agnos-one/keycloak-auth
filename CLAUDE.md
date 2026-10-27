@@ -46,7 +46,7 @@ This is a Keycloak API client library exposing three public classes from `src/ke
 
 ### Key design points
 
-- Async-first (`httpx` with HTTP/2)
+- Async-first (`httpx2`, the maintained fork of `httpx`, with HTTP/2)
 - All API responses are validated through **Pydantic v2** models in `src/keycloak_auth/models/`
 - JWT decoding uses **PyJWT** (RS256, audience = `client_id`) with its native `Options` type. The public key comes from the realm endpoint (`URL_REALM`), is wrapped in PEM headers, and is cached in a `cachetools.TTLCache` for 1 hour (`PUBLIC_KEY_TTL`), guarded by an `asyncio.Lock`
 - `AsyncKeycloakAdmin` internally holds an `AsyncKeycloakOpenID` instance (against `admin_realm`, default `master`, client `admin-cli`) for its own auth, and operates on `target_realm`
@@ -68,6 +68,8 @@ urls.py             — API endpoint URL templates
 utils.py            — raise_error, check_permission_format, gen_auth_header
 exceptions.py       — KeycloakError
 ```
+
+`scripts/build_index.py` and `.github/workflows/release.yml` publish releases to the static PEP 503 index at `https://pkgs.agnos.one/simple/`, not PyPI. Pushing a `vX.Y.Z` tag starts a release.
 
 ### Gotchas
 

@@ -3,7 +3,7 @@ import time
 from types import TracebackType
 from typing import Self
 
-import httpx
+import httpx2
 
 from .. import urls
 from ..exceptions import KeycloakError
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 class AsyncKeycloakAdmin:
     """
-    Keycloak Admin client with async httpx.
+    Keycloak Admin client with async httpx2.
 
     Args:
         server_url: Keycloak server URL
@@ -71,7 +71,7 @@ class AsyncKeycloakAdmin:
         self.client_id = client_id
         self.client_secret = client_secret
 
-        self._http = httpx.AsyncClient(verify=verify, timeout=timeout, http2=True)
+        self._http = httpx2.AsyncClient(verify=verify, timeout=timeout, http2=True)
         self._openid = AsyncKeycloakOpenID(
             server_url=server_url,
             realm=admin_realm,
@@ -95,7 +95,7 @@ class AsyncKeycloakAdmin:
         try:
             if self._token:
                 await self.logout()
-        except (KeycloakError, httpx.HTTPError) as e:
+        except (KeycloakError, httpx2.HTTPError) as e:
             # don't let a failed logout replace the exception raised in the `async with` body
             logger.warning("Failed to logout admin on exit: %r", e)
         finally:
@@ -170,7 +170,7 @@ class AsyncKeycloakAdmin:
                     # if the refresh token is invalid, login again
                     token = await self._get_token()
                 else:
-                    raise e
+                    raise
             self._token = token
             self._decoded_access_token = None
 

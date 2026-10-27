@@ -1,7 +1,5 @@
 # keycloak-auth
 
-[![PyPI](https://img.shields.io/pypi/v/keycloak-auth)](https://pypi.org/project/keycloak-auth/)
-[![Python](https://img.shields.io/pypi/pyversions/keycloak-auth)](https://pypi.org/project/keycloak-auth/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Typed, async-first Python client for Keycloak's OpenID Connect and Admin REST APIs, maintained by Agnos.
@@ -12,17 +10,39 @@ Typed, async-first Python client for Keycloak's OpenID Connect and Admin REST AP
 - Admin API: users, clients, and client authorization resources, policies and permissions
 - Every response is validated into a Pydantic v2 model, and the package is fully typed (pyright strict)
 
-Requires Python 3.13 or later. Uses `httpx` with HTTP/2.
+Requires Python 3.13 or later. Uses `httpx2` with HTTP/2.
 
 > **Status:** beta. The API may still change in minor releases before 1.0. Breaking changes are listed in the [changelog](CHANGELOG.md).
 
 ## Installation
 
+The package is published to the Agnos package index at `https://pkgs.agnos.one/simple/`, not to PyPI.
+
+With uv, add the index to your `pyproject.toml` and pin the package to it:
+
+```toml
+[[tool.uv.index]]
+name = "agnos"
+url = "https://pkgs.agnos.one/simple/"
+explicit = true
+
+[tool.uv.sources]
+keycloak-auth = { index = "agnos" }
+```
+
 ```bash
-pip install keycloak-auth
-# or
 uv add keycloak-auth
 ```
+
+Because the index is `explicit`, uv uses it only for `keycloak-auth`, and installs everything else from PyPI.
+
+With pip, install the wheel by its URL, and the dependencies come from PyPI:
+
+```bash
+pip install https://pkgs.agnos.one/simple/keycloak-auth/keycloak_auth-0.1.0-py3-none-any.whl
+```
+
+Avoid `pip install keycloak-auth --extra-index-url https://pkgs.agnos.one/simple/`: pip treats both indexes as equal, so a package of the same name on PyPI could be installed instead.
 
 ## Quick start
 

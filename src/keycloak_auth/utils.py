@@ -1,7 +1,7 @@
 import re
 from typing import NoReturn
 
-import httpx
+import httpx2
 from pydantic import BaseModel
 
 from .exceptions import KeycloakError
@@ -17,7 +17,7 @@ class _ErrorBody(BaseModel):
     """Message on admin API errors, e.g. 409 `User exists with same username`."""
 
 
-def raise_error(response: httpx.Response) -> NoReturn:
+def raise_error(response: httpx2.Response) -> NoReturn:
     status_code = response.status_code
     status = f"{status_code} {response.reason_phrase}"
     content_type = response.headers.get("Content-Type", "")

@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-10-27
 
-First public release, under the MIT License.
+First public release, under the MIT License, published to the package index at `https://pkgs.agnos.one/simple/`.
 
 ### Added
 
@@ -21,6 +21,8 @@ First public release, under the MIT License.
 - `KeycloakOpenID`: a minimal synchronous client with `well_known()`.
 - Pydantic v2 models for every response, with field docstrings exposed as field descriptions.
 - Full type annotations, checked with pyright in strict mode, and a `py.typed` marker.
+- HTTP/2 requests through `httpx2`, the maintained fork of `httpx`. Network errors are raised as `httpx2` exceptions, such as `httpx2.ConnectError`.
+- TLS certificates are verified against the operating system's certificate store, so container images need the `ca-certificates` package.
 
 [Unreleased]: https://github.com/agnos-one/keycloak-auth/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/agnos-one/keycloak-auth/releases/tag/v0.1.0

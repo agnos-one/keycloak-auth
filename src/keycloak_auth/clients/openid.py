@@ -2,7 +2,7 @@ import asyncio
 from types import TracebackType
 from typing import Any, Literal, Self
 
-import httpx
+import httpx2
 import jwt
 from cachetools import TTLCache
 from jwt.types import Options
@@ -29,10 +29,11 @@ PUBLIC_KEY_TTL = 3600  # Cache the public key for 1 hour
 DEVICE_CODE_SLOW_DOWN = 5  # Seconds added to the polling interval on `slow_down` (RFC 8628, section 3.5)
 
 
-def _scope_param(scope: list[str]) -> str:
+def _scope_param(scope: list[str] | None) -> str:
     # add the openid scope if not present, as required by the OpenID Connect spec
+    scope = list(scope or [])
     if "openid" not in scope:
-        scope = [*scope, "openid"]
+        scope.append("openid")
     return " ".join(scope)
 
 
@@ -62,7 +63,7 @@ class KeycloakOpenID:
         self.realm = realm
         self.client_id = client_id
         self.client_secret = client_secret
-        self._http = httpx.Client(verify=verify, timeout=timeout, http2=True)
+        self._http = httpx2.Client(verify=verify, timeout=timeout, http2=True)
 
     def well_known(self) -> WellKnown:
         """
@@ -104,8 +105,8 @@ class AsyncKeycloakOpenID:
         verify: bool = True,
         timeout: int = 10,
     ):
-        self._http = httpx.AsyncClient(verify=verify, timeout=timeout, http2=True)
-        self.cache: TTLCache[str, str] = TTLCache(maxsize=1, ttl=PUBLIC_KEY_TTL)
+        self._http = httpx2.AsyncClient(verify=verify, timeout=timeout, http2=True)
+        self.cache = TTLCache[str, str, float](maxsize=1, ttl=PUBLIC_KEY_TTL)
         self.cache_lock = asyncio.Lock()
         self.client_id = client_id
         self.client_secret = client_secret
@@ -135,7 +136,7 @@ class AsyncKeycloakOpenID:
         return data
 
     async def password_grant(
-        self, username: str, password: str, totp: str | None = None, scope: list[str] = ["openid"]
+        self, username: str, password: str, totp: str | None = None, scope: list[str] | None = None
     ) -> TokenResponse:
         """
         Do a password grant request to obtain an access/refresh token.
@@ -144,7 +145,7 @@ class AsyncKeycloakOpenID:
             username (str): User username.
             password (str): User password.
             totp (str, optional): Time-based OTP. Defaults to None.
-            scope (list[str], optional): List of scopes to request. Defaults to ['openid'].
+            scope (list[str], optional): List of scopes to request. `openid` is always added. Defaults to ['openid'].
 
         Returns:
             TokenResponse: Token model containing access token, refresh token, and other details.
@@ -171,12 +172,12 @@ class AsyncKeycloakOpenID:
         resp_json = resp.json()
         return TokenResponse.model_validate(resp_json)
 
-    async def device_code_grant(self, scope: list[str] = ["openid"]) -> DeviceAuthResponse:
+    async def device_code_grant(self, scope: list[str] | None = None) -> DeviceAuthResponse:
         """
         Get device authorization URL and device code.
 
         Args:
-            scope (list[str], optional): List of scopes to request. Defaults to ['openid'].
+            scope (list[str], optional): List of scopes to request. `openid` is always added. Defaults to ['openid'].
 
         Returns:
             DeviceAuthResponse: Device authorization response containing device code, user code, and verification URI.
@@ -236,12 +237,12 @@ class AsyncKeycloakOpenID:
                     continue
             raise_error(token_resp)
 
-    async def client_credentials_grant(self, scope: list[str] = ["openid"]) -> TokenResponse:
+    async def client_credentials_grant(self, scope: list[str] | None = None) -> TokenResponse:
         """
         Obtain an access token using client credentials grant.
 
         Args:
-            scope (list[str], optional): List of scopes to request. Defaults to ['openid'].
+            scope (list[str], optional): List of scopes to request. `openid` is always added. Defaults to ['openid'].
 
         Returns:
             TokenResponse: Token model containing the access token and other details.

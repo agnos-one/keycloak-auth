@@ -23,11 +23,11 @@ classifiers = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "cachetools>=7.0.5",
-    "cryptography>=45.0.5",
-    "httpx[http2]>=0.28.1",
-    "pydantic>=2.11.7",
-    "pyjwt>=2.10.1",
+    "cachetools>=7.2.6",
+    "cryptography>=50.0.2",
+    "httpx2[http2]>=2.16.0",
+    "pydantic>=2.14.1",
+    "pyjwt>=2.15.1",
 ]
 
 [project.urls]
@@ -45,13 +45,13 @@ typeCheckingMode = "strict"
 
 [dependency-groups]
 dev = [
-    "pyright>=1.1.408",
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.1.0",
-    "pytest-cov>=6.2.1",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.1",
+    "pytest-cov>=7.1.0",
     "pytest-dotenv>=0.5.2",
-    "ruff>=0.15.7",
-    "types-cachetools>=6.2.0.20260317",
+    "ruff>=0.17.3",
+    "types-cachetools>=7.0.0.20260713",
 ]
 
 [tool.ruff]

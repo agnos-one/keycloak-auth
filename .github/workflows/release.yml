@@ -1,0 +1,204 @@
+# Publishes a release to the static package index at https://pkgs.agnos.one/simple/,
+# then creates a GitHub Release. Start it by pushing a tag that matches the version in pyproject.toml:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]*.[0-9]*.[0-9]*"]
+
+permissions: {}
+
+# the index pages are rewritten on every release, so releases must not run at the same time
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  PROJECT: keycloak-auth
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: false
+
+      - name: Check the tag and changelog match the version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(uv version --short)"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag $TAG does not match version $version in pyproject.toml"
+            exit 1
+          fi
+          if ! grep -Eq "^## \[${version//./\\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md needs a dated entry: ## [$version] - YYYY-MM-DD"
+            exit 1
+          fi
+
+      - run: uv sync --frozen
+      - run: uv run ruff format --check
+      - run: uv run ruff check
+      - run: uv run pyright
+      - run: uv build --no-sources
+      - run: uvx twine==7.0.0 check --strict dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: agnos-packages
+      url: https://pkgs.agnos.one/simple/keycloak-auth/
+    permissions:
+      contents: read
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      # R2 doesn't support every checksum the AWS CLI sends by default
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # the project index lists every version, so its page is rebuilt from all the files in the bucket
+      - name: Download the published files
+        run: |
+          mkdir mirror
+          aws s3 sync "s3://$BUCKET/simple/$PROJECT/" mirror/ --exclude index.html --only-show-errors
+
+      - name: Refuse to overwrite a published version
+        run: |
+          for f in dist/*; do
+            if [ -e "mirror/${f#dist/}" ]; then
+              echo "::error::${f#dist/} is already published. Bump the version instead."
+              exit 1
+            fi
+          done
+
+      # files go up before the index, so the index never links to a missing file
+      - name: Upload the distribution files
+        run: |
+          for f in dist/*; do
+            case "$f" in
+              *.whl) type=application/zip ;;
+              *) type=application/gzip ;;
+            esac
+            aws s3 cp "$f" "s3://$BUCKET/simple/$PROJECT/${f#dist/}" --only-show-errors \
+              --content-type "$type" --cache-control "public, max-age=31536000, immutable"
+            cp "$f" mirror/
+          done
+
+      - name: Upload the project index
+        run: |
+          python3 scripts/build_index.py project mirror "$PROJECT"
+          aws s3 cp mirror/index.html "s3://$BUCKET/simple/$PROJECT/index.html" --only-show-errors \
+            --content-type "text/html; charset=utf-8" --cache-control "public, max-age=300"
+
+      # the root index lists every project in the bucket, including ones published from other repositories
+      - name: Upload the root index
+        run: |
+          aws s3api list-objects-v2 --bucket "$BUCKET" --prefix simple/ --delimiter / \
+            --query 'CommonPrefixes[].Prefix' --output text > prefixes.txt
+          mapfile -t names < <(tr '\t' '\n' < prefixes.txt | sed -e 's#^simple/##' -e 's#/$##')
+          python3 scripts/build_index.py root root.html "${names[@]}"
+          aws s3 cp root.html "s3://$BUCKET/simple/index.html" --only-show-errors \
+            --content-type "text/html; charset=utf-8" --cache-control "public, max-age=300"
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # the release notes are this version's section of CHANGELOG.md
+          awk -v heading="## [${TAG#v}]" 'index($0, heading) == 1 { found = 1; next } found && /^## \[/ { exit } found' \
+            CHANGELOG.md > notes.md
+          gh release create "$TAG" dist/* --verify-tag --title "$TAG" --notes-file notes.md
+
+  # Runs on success, failure and cancellation; a Slack error is logged but doesn't fail the workflow
+  notify:
+    needs: [build, publish, github-release]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    env:
+      # a failed job skips the jobs after it, so any failure means the release failed
+      STATUS: >-
+        ${{ contains(needs.*.result, 'failure') && 'failure'
+        || contains(needs.*.result, 'cancelled') && 'cancelled'
+        || 'success' }}
+    steps:
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v4
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "${{ env.STATUS == 'success' && ':white_check_mark:' || env.STATUS == 'cancelled' && ':no_entry_sign:' || ':x:' }} ${{ github.repository }} ${{ github.ref_name }} release: ${{ env.STATUS }}"
+            blocks:
+              - type: section
+                text:
+                  type: mrkdwn
+                  text: "${{ env.STATUS == 'success' && ':white_check_mark:' || env.STATUS == 'cancelled' && ':no_entry_sign:' || ':x:' }} *${{ github.repository }}* release *${{ env.STATUS }}*"
+                fields:
+                  - type: mrkdwn
+                    text: "*Version*\n${{ github.ref_name }}"
+                  - type: mrkdwn
+                    text: "*Package*\n${{ needs.publish.result == 'success' && format('<https://pkgs.agnos.one/simple/{0}/|pkgs.agnos.one/simple/{0}>', env.PROJECT) || 'not published' }}"
+                  - type: mrkdwn
+                    text: "*GitHub Release*\n${{ needs.github-release.result == 'success' && format('<{0}/{1}/releases/tag/{2}|{2}>', github.server_url, github.repository, github.ref_name) || 'not created' }}"
+                  - type: mrkdwn
+                    text: "*Jobs*\nbuild: ${{ needs.build.result }}\npublish: ${{ needs.publish.result }}\ngithub-release: ${{ needs.github-release.result }}"
+                  - type: mrkdwn
+                    text: "*Commit*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                  - type: mrkdwn
+                    text: "*Pushed by*\n${{ github.actor }}"
+              - type: actions
+                elements:
+                  - type: button
+                    text:
+                      type: plain_text
+                      text: View run
+                    url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
