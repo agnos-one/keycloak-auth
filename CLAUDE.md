@@ -46,7 +46,7 @@ This is a Keycloak API client library exposing three public classes from `src/ke
 
 ### Key design points
 
-- Async-first (`httpx2`, the maintained fork of `httpx`, with HTTP/2)
+- Async-first (`httpx2`, the maintained fork of `httpx`, with HTTP/2). Network errors reach callers as `httpx2` exceptions, so the HTTP client is part of the public API; changing it is a breaking change
 - All API responses are validated through **Pydantic v2** models in `src/keycloak_auth/models/`
 - JWT decoding uses **PyJWT** (RS256, audience = `client_id`) with its native `Options` type. The public key comes from the realm endpoint (`URL_REALM`), is wrapped in PEM headers, and is cached in a `cachetools.TTLCache` for 1 hour (`PUBLIC_KEY_TTL`), guarded by an `asyncio.Lock`
 - `AsyncKeycloakAdmin` internally holds an `AsyncKeycloakOpenID` instance (against `admin_realm`, default `master`, client `admin-cli`) for its own auth, and operates on `target_realm`
@@ -69,8 +69,22 @@ utils.py            — raise_error, check_permission_format, gen_auth_header
 exceptions.py       — KeycloakError
 ```
 
-`scripts/build_index.py` and `.github/workflows/release.yml` publish releases to the static PEP 503 index at `https://pkgs.agnos.one/simple/`, not PyPI. Pushing a `vX.Y.Z` tag starts a release.
+## Releases
+
+Releases go to the static PEP 503 index at `https://pkgs.agnos.one/simple/`, not PyPI, through `.github/workflows/release.yml`. To release:
+
+1. `uv version X.Y.Z`
+2. In CHANGELOG.md, move the `Unreleased` entries into a dated `## [X.Y.Z] - YYYY-MM-DD` section and update the links at the bottom
+3. Commit and push, then `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+The workflow fails unless the tag is exactly `v` + the `pyproject.toml` version and the changelog section is dated. It refuses to overwrite a published version, so a bad release is fixed by publishing a new version. The GitHub Release notes are that version's changelog section.
+
+`scripts/build_index.py` generates the index pages. It is stdlib-only and runs on the CI runner's system `python3`, which can be older than this project's Python (it needs 3.11+ for `hashlib.file_digest`), so don't use newer syntax or third-party imports there. Its `HTML_TEMPLATE` is filled with `str.format()`, whose field names neither ruff nor pyright check; run it against a local `uv build` after changing it.
+
+This repository is public. Keep release infrastructure details (hosting, notifications, secret setup) out of README.md, CONTRIBUTING.md, this file and workflow comments.
 
 ### Gotchas
 
 - AuthZ resource models: `type` is optional (on `AuthZResourceOptional`), and `AuthZResource.id` maps from Keycloak's `_id` alias.
+- `scope` parameters default to `None` (not a mutable list); `_scope_param()` always adds `openid` and never mutates the caller's list.
+- `types-cachetools` 7 gives `TTLCache` a third type parameter (the timer type). Create caches as `TTLCache[str, str, float](...)`; an annotation alone doesn't satisfy pyright.
