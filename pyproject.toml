@@ -1,0 +1,61 @@
+[project]
+name = "keycloak-auth"
+version = "0.1.0"
+description = "Keycloak API client for authentication and authorization"
+readme = "README.md"
+authors = [
+    { name = "Kun Yang" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["keycloak", "openid-connect", "oidc", "oauth2", "uma", "authorization", "async"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+requires-python = ">=3.13"
+dependencies = [
+    "cachetools>=7.0.5",
+    "cryptography>=45.0.5",
+    "httpx[http2]>=0.28.1",
+    "pydantic>=2.11.7",
+    "pyjwt>=2.10.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/agnos-one/keycloak-auth"
+Repository = "https://github.com/agnos-one/keycloak-auth"
+Issues = "https://github.com/agnos-one/keycloak-auth/issues"
+Changelog = "https://github.com/agnos-one/keycloak-auth/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["uv_build>=0.8.4,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.pyright]
+typeCheckingMode = "strict"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.408",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-dotenv>=0.5.2",
+    "ruff>=0.15.7",
+    "types-cachetools>=6.2.0.20260317",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+extend-select = ["UP"]
